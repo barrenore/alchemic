@@ -1,0 +1,115 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "alchemic"
+version = "0.1.0"
+description = "SQLAlchemy 2.0 declarative models that are also Pydantic models, with Mapped[T] typing a type checker actually understands."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Steppestone" }]
+keywords = ["sqlalchemy", "pydantic", "orm", "typing"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
+]
+# SQLAlchemy <2.1: 2.1 types statements as ``Select[*Ts]``, and the typed signatures
+# here are written against ``Select[tuple[...]]``. >=2.0.31: the first 2.0 release
+# that imports on Python 3.13. Pydantic <3: alchemic reads some of its internals
+# (tests/test_private_api.py). The minimum-versions CI job tests both floors.
+dependencies = ["SQLAlchemy>=2.0.31,<2.1", "pydantic>=2.11,<3"]
+
+[project.urls]
+Repository = "https://github.com/barrenore/alchemic"
+Issues = "https://github.com/barrenore/alchemic/issues"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  # Coverage plugin for pytest, enforcing the fail_under threshold
+  "pytest-cov>=5",
+  "pytest-asyncio>=0.24",
+  "aiosqlite>=0.20",            # Async SQLite driver for tests
+  "SQLAlchemy[asyncio]",        # greenlet; SQLAlchemy 2.0.31 omits it on Python 3.13
+  "psycopg[binary]>=3.2",       # Postgres integration suite (sync + async)
+  "alembic>=1.13",              # autogenerate-parity test
+  "pyright",
+  "mypy",
+  "ty==0.0.84",                 # Pinned pre-1.0 type checker
+  "ruff",
+  "black",
+  "pylint",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/alchemic"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+asyncio_mode = "auto"
+markers = ["postgres: integration test needing the docker-compose Postgres"]
+filterwarnings = [
+  "ignore:Field name .* shadows an attribute in parent .*:UserWarning",
+  "ignore:'asyncio\\..*' is deprecated.*:DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.black]
+line-length = 110
+target-version = ["py313"]
+
+[tool.pylint.main]
+py-version = "3.13"
+
+[tool.pylint.format]
+max-line-length = 110
+# Lines ending in type-checker or pylint pragmas.
+ignore-long-lines = '^.*#\s*(type|pyright|ty|pylint):.*$'
+
+[tool.pylint.classes]
+valid-metaclass-classmethod-first-arg = ["mcls"]
+
+[tool.pylint.basic]
+# Names are at least two characters long; ``_`` is the only exception.
+good-names = ["_"]
+argument-rgx = "^_{0,2}[a-z][a-z0-9_]+$"
+attr-rgx = "^_{0,2}[a-z][a-z0-9_]+$"
+inlinevar-rgx = "^_{0,2}[a-z][a-z0-9_]+$"
+variable-rgx = "^_{0,2}[a-z][a-z0-9_]+$"
+
+[tool.pylint.design]
+min-public-methods = 0
+# The stub of SQLAlchemy's ``Mapped`` has 13 ancestors.
+max-parents = 13
+
+[tool.pyright]
+include = ["src", "tests"]
+strict = ["src"]
+pythonVersion = "3.13"
+
+[tool.ty.src]
+include = ["src"]
+
+[tool.coverage.run]
+source = ["src/alchemic"]
+omit = ["tests/*"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[dependency-groups]
+dev = [
+    "coverage>=7",
+]

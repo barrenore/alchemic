@@ -1,0 +1,14 @@
+__pycache__/
+*.egg-info/
+.venv/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.zlime/
+
+dist/
+.benchmarks/
+.coverage
+uv.lock
+.pypi-api-key
