@@ -1,0 +1,151 @@
+name: CI
+
+# Every job targets `steppestone-runners`, the org-scoped ARC runner set in the
+# cluster. Do not use `ubuntu-latest`: GitHub-hosted minutes are unavailable on
+# this account.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+# Uses the cluster's ci-postgres Deployment; runner pods do not run a Docker daemon
+# for service containers.
+#
+# The Service is ClusterIP-only, so this hostname resolves from a runner pod and
+# from nowhere else. It runs POSTGRES_HOST_AUTH_METHOD=trust, hence no password.
+#
+# Shared Postgres instance. tests/conftest.py creates an isolated
+# `alchemic_ci_<hex>` database per process and drops it at exit.
+env:
+  ALCHEMIC_POSTGRES_ADMIN_URL: postgresql+psycopg://postgres@ci-postgres.arc-runners.svc.cluster.local:5432/postgres
+
+jobs:
+  test:
+    runs-on: steppestone-runners
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      # Check Postgres reachability via /dev/tcp before installing dependencies;
+      # the runner image includes neither nc nor psql.
+      - name: Verify ci-postgres is reachable
+        run: |
+          set -euo pipefail
+          host=ci-postgres.arc-runners.svc.cluster.local
+          port=5432
+          for attempt in 1 2 3 4 5; do
+            if timeout 5 bash -c "exec 3<>/dev/tcp/${host}/${port}" 2>/dev/null; then
+              echo "${host}:${port} is accepting connections"
+              exit 0
+            fi
+            echo "attempt ${attempt}/5: ${host}:${port} not reachable yet"
+            sleep 5
+          done
+          echo "::error::${host}:${port} is unreachable. The Postgres tests need it." >&2
+          echo "::error::Check it with: kubectl -n arc-runners get deploy,svc,networkpolicy ci-postgres" >&2
+          echo "::error::A hang here rather than a refusal points at a NetworkPolicy; a refusal points at the Deployment." >&2
+          exit 1
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # tests/test_typing.py shells out to pyright and mypy under *this*
+      # interpreter, so pyright has to work here too, not just in the lint job.
+      - name: Install libatomic1 for pyright's bundled Node
+        run: |
+          set -euo pipefail
+          if command -v sudo >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends libatomic1
+          else
+            apt-get update && apt-get install -y --no-install-recommends libatomic1
+          fi
+
+      # Require type-checker tests and Postgres tests to run rather than skip.
+      - name: Run tests with coverage gate
+        env:
+          ALCHEMIC_REQUIRE_TYPECHECK: "1"
+          ALCHEMIC_REQUIRE_POSTGRES: "1"
+        run: uv run --python ${{ matrix.python-version }} --extra dev pytest --cov=alchemic --cov-report=term-missing --cov-fail-under=90
+
+  lint:
+    runs-on: steppestone-runners
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Install libatomic1 required by pyright's bundled Node binary.
+      - name: Install libatomic1 for pyright's bundled Node
+        run: |
+          set -euo pipefail
+          if command -v sudo >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends libatomic1
+          else
+            apt-get update && apt-get install -y --no-install-recommends libatomic1
+          fi
+
+      - run: uv run --extra dev ruff check .
+      - run: uv run --extra dev black --check src tests
+      - run: uv run --extra dev pylint src/alchemic
+      - run: uv run --extra dev pyright
+      - run: uv run --extra dev pyright --verifytypes alchemic --ignoreexternal
+      - run: uv run --extra dev ty check
+
+  # The lowest SQLAlchemy and Pydantic that pyproject.toml allows. Installing the
+  # package alone with lowest-direct pins those two; the dev tools are then added
+  # at their latest without moving them.
+  minimum-versions:
+    runs-on: steppestone-runners
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install libatomic1 for pyright's bundled Node
+        run: |
+          set -euo pipefail
+          if command -v sudo >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends libatomic1
+          else
+            apt-get update && apt-get install -y --no-install-recommends libatomic1
+          fi
+      - name: Install the minimum versions
+        run: |
+          set -euo pipefail
+          uv venv --python 3.13
+          uv pip install --resolution lowest-direct -e .
+          uv pip install -e ".[dev]"
+          .venv/bin/python -c "import sqlalchemy, pydantic; print('SQLAlchemy', sqlalchemy.__version__, 'Pydantic', pydantic.VERSION)"
+      - name: Run tests
+        env:
+          ALCHEMIC_REQUIRE_TYPECHECK: "1"
+          ALCHEMIC_REQUIRE_POSTGRES: "1"
+        run: .venv/bin/python -m pytest
+
+  # Type-check package source with mypy in strict mode. Consumer code type safety
+  # is covered by tests/test_typing.py.
+  mypy:
+    runs-on: steppestone-runners
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv run --extra dev mypy --strict src

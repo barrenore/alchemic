@@ -1,0 +1,29 @@
+# Postgres for the integration suite.
+#
+# SQLite proves the mapping logic; it does not prove the things this library is
+# actually used against -- native UUID and INTERVAL columns, JSONB, real ENUM
+# types, server-side defaults, and DDL that a database can reject. Those only
+# show up on Postgres.
+#
+#   docker compose up -d
+#   pytest                     # integration tests auto-detect and run
+#   docker compose down -v
+#
+# Exposed on host port 5443.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: alchemic
+      POSTGRES_PASSWORD: alchemic
+      POSTGRES_DB: alchemic_test
+    ports:
+      - "5443:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alchemic -d alchemic_test"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
