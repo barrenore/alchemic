@@ -28,7 +28,7 @@ class Clock:
     """A clock that moves only when told to."""
 
     def __init__(self) -> None:
-        self.now = dt.datetime(2026, 1, 1)  # noqa: DTZ001  # SQLite's DateTime reads back naive
+        self.now = dt.datetime(2026, 1, 1)  # SQLite's DateTime reads back naive
 
     def __call__(self) -> dt.datetime:
         return self.now
@@ -209,7 +209,7 @@ def test_onupdate_takes_any_function(engine: Engine):
         shapes = Shapes(id=1, title="a")
         session.add(shapes)
         session.commit()
-        assert shapes.day == dt.date.today()  # noqa: DTZ011
+        assert shapes.day == dt.date.today()
         first = shapes.serial
         shapes.title = "b"
         session.commit()
