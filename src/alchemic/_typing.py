@@ -6,7 +6,7 @@ The typed forms are declared for type checkers; at runtime the names are SQLAlch
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any, Final, Generic, Literal, Protocol, TypedDict, TypeVar, Unpack, overload
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import Column, ForeignKey
 from sqlalchemy.orm import InstrumentedAttribute, MappedColumn
 from sqlalchemy.orm import Mapped as _SAMapped
 from sqlalchemy.orm import mapped_column as _sa_mapped_column
@@ -423,7 +423,15 @@ else:
         and makes a later change raise ``ValidationError``. ``version=True`` makes
         the column the mapper's ``version_id_col``, read-only unless declared
         otherwise or the application writes it (``version_id_generator=False``).
+
+        Raises ``TypeError`` for a ``Column`` among ``args``.
         """
+        for argument in args:
+            if isinstance(argument, Column):
+                raise TypeError(
+                    "mapped_column() takes a Column's arguments, not a Column: pass its type, "
+                    "constraints and keywords to mapped_column() directly"
+                )
         column = _sa_mapped_column(*args, **kw)
         if not init:
             exclude_from_init(column)
