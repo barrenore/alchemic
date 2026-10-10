@@ -3,9 +3,6 @@ name: Release
 # Pushing a tag `vX.Y.Z` releases version X.Y.Z: the full CI suite runs, then the
 # package is built, published to PyPI through trusted publishing, and a GitHub
 # Release is created with the matching CHANGELOG section as its notes.
-#
-# Jobs run on `steppestone-runners`, the barrenore org's ARC runner set. Its pods
-# have no Docker daemon, so container actions are avoided.
 on:
   push:
     tags: ["v*"]
@@ -19,7 +16,7 @@ jobs:
 
   build:
     needs: ci
-    runs-on: steppestone-runners
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -50,7 +47,7 @@ jobs:
 
   publish:
     needs: build
-    runs-on: steppestone-runners
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
       name: pypi
@@ -67,7 +64,7 @@ jobs:
 
   github-release:
     needs: publish
-    runs-on: steppestone-runners
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
