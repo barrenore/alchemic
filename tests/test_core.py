@@ -178,3 +178,8 @@ def test_server_default_column_declared_optional_is_filled_by_the_database(sessi
     session.commit()
     assert isinstance(row.created, datetime)
     assert row.seq == 7
+
+
+def test_mapped_column_refuses_a_column():
+    with pytest.raises(TypeError, match="takes a Column's arguments, not a Column"):
+        mapped_column(sa.Column(sa.String(20)))

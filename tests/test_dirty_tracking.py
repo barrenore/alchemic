@@ -68,3 +68,26 @@ def test_attribute_deletion(session: Session):
 
     del item.count
     assert "count" not in item.__dict__
+
+
+def test_constructed_values_are_pending_changes():
+    item = Item(name="Widget", count=3)
+    history = sa.inspect(item).attrs.name.history
+
+    assert history.added == ["Widget"]
+    assert not history.unchanged
+
+
+def test_delete_then_add_with_the_same_primary_key_in_one_flush(session: Session):
+    item = Item(name="Widget", count=10)
+    session.add(item)
+    session.commit()
+    item_id = item.id
+
+    session.delete(item)
+    session.add(Item(id=item_id, name="Gadget", count=20))
+    session.commit()
+    session.expunge_all()
+
+    reloaded = session.execute(sa.select(Item).where(Item.id == item_id)).scalar_one()
+    assert (reloaded.name, reloaded.count) == ("Gadget", 20)

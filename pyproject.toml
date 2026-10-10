@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "alchemic"
-version = "0.1.0"
+version = "0.1.1"
 description = "SQLAlchemy 2.0 declarative models that are also Pydantic models, with Mapped[T] typing a type checker actually understands."
 readme = "README.md"
 requires-python = ">=3.13"

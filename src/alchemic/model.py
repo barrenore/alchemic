@@ -374,6 +374,8 @@ class Model(BaseModel, DeclarativeRoot, metaclass=ModelMeta):
 
         validated = dict(self.__dict__)
         given = set(self.__pydantic_fields_set__)
+        # Emptied so the ORM records each assignment below as a change from no value.
+        vars(self).clear()
         manager.setup_instance(self)
         # Assign validated attributes without re-triggering validation.
         for key, value in validated.items():
