@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 (2026-10-10)
+
+- README: removed the link to the design document, which is no longer published.
+
 ## 0.1.1 (2026-10-10)
 
 - Fixed: deleting a row and adding a new instance with the same primary key in
