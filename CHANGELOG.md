@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 (2026-10-12)
+
+- Added `col`, a shorter name for `mapped_column`.
+- Added reference documentation in `docs/`: interfaces, relationships, typing,
+  errors, recipes and codebase notes. The README links to it.
+
 ## 0.1.2 (2026-10-10)
 
 - README: removed the link to the design document, which is no longer published.

@@ -13,6 +13,7 @@ from alchemic._typing import (
     Related,
     RelatedAttribute,
     TypedAttribute,
+    col,
     link,
     mapped_column,
     path,
@@ -42,6 +43,7 @@ __all__ = [
     "TypedAttribute",
     "Updated",
     "async_sessionmaker",
+    "col",
     "create_model_base",
     "delete",
     "get_field_info",
@@ -58,4 +60,4 @@ __all__ = [
     "update",
 ]
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"

@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from pydantic import ValidationError
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
-from alchemic import Mapped, Model, mapped_column, relationship
+from alchemic import Mapped, Model, col, mapped_column, relationship
 
 
 class Actor(Model):
@@ -26,6 +26,22 @@ class Character(Model):
 
 
 # --- construction validation ---
+
+
+def test_col_is_mapped_column_and_declares_columns():
+    import alchemic
+
+    assert col is mapped_column
+    assert "col" in alchemic.__all__
+
+    class Shelf(Model):
+        __tablename__ = "shelves_col"
+        id: Mapped[int] = col(primary_key=True, init=False)
+        label: Mapped[str] = col(sa.String(20), default="misc")
+
+    assert set(Shelf.__table__.columns.keys()) == {"id", "label"}
+    assert Shelf(label="books").label == "books"
+    assert Shelf().label == "misc"
 
 
 def test_construction_validates_types():

@@ -11,6 +11,8 @@ pip install alchemic
 alchemic requires Python 3.13 or later, SQLAlchemy 2.0.31 or later (2.1 is not
 yet supported), and Pydantic 2.11 or later.
 
+The reference for every public name, with its rules, typing details and error messages, is in [docs/](docs/index.md).
+
 ## Quickstart
 
 ```python
