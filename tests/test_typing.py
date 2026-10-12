@@ -39,6 +39,30 @@ class User(Model):
 stmt = select(User).where(User.name in ["alice", "bob"])
 """
 
+COL_CODE = """
+from alchemic import Model, Mapped, col
+
+class Hero(Model):
+    __tablename__ = "heroes_col_typing"
+    id: Mapped[int] = col(primary_key=True, init=False)
+    name: Mapped[str] = col(default="anon")
+    level: Mapped[int]
+
+Hero(level=1)
+Hero(name="ada", level=2)
+"""
+
+COL_INVALID_CODE = """
+from alchemic import Model, Mapped, col
+
+class Hero(Model):
+    __tablename__ = "heroes_col_invalid"
+    id: Mapped[int] = col(primary_key=True, init=False)
+    level: Mapped[int]
+
+Hero(level="high")
+"""
+
 
 # Overload resolution types checked with assert_type.
 EXEC_CODE = """
@@ -184,6 +208,24 @@ def test_invalid_expressions_rejected(checker: str):
     assert (
         '"bool"' in output or "incompatible type" in output.lower()
     ), f"{checker} rejected the code, but not with the expected bool/arg-type error:\n{output}"
+
+
+@pytest.mark.parametrize("checker", ["pyright", "mypy"])
+def test_col_alias_constructor_is_typed(checker: str):
+    binary = _require(checker)
+    res = _check(binary, COL_CODE)
+    assert res.returncode == 0, f"col() constructor failed {checker}:\n{res.stdout}\n{res.stderr}"
+
+
+@pytest.mark.parametrize("checker", ["pyright", "mypy"])
+def test_col_alias_rejects_wrong_argument_type(checker: str):
+    binary = _require(checker)
+    res = _check(binary, COL_INVALID_CODE)
+    output = res.stdout + res.stderr
+    assert res.returncode != 0, f"Expected {checker} to reject level='high' through col()\n{output}"
+    assert (
+        "reportArgumentType" in output or "arg-type" in output
+    ), f"{checker} rejected the code, but not with an argument-type error:\n{output}"
 
 
 @pytest.mark.parametrize("checker", ["pyright", "mypy"])

@@ -20,6 +20,7 @@ __all__ = [
     "Related",
     "RelatedAttribute",
     "TypedAttribute",
+    "col",
     "link",
     "mapped_column",
     "path",
@@ -446,3 +447,6 @@ else:
         if isinstance(column, MappedColumn):
             column = column.column
         return ForeignKey(column, **kw)
+
+
+col = mapped_column
