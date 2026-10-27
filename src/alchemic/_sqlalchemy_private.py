@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Final
 from sqlalchemy.orm import MappedColumn, Mapper, MapperProperty, RelationshipProperty
 from sqlalchemy.orm.base import _MappedAnnotationBase
 from sqlalchemy.sql.base import _NoArg
+from sqlalchemy.sql.selectable import GenerativeSelect
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio.session import _AsyncSessionBind
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm.relationships import _RelationshipArg, _RelationshipArgs
     from sqlalchemy.sql._typing import _AutoIncrementType, _InfoType
     from sqlalchemy.sql.schema import _ServerDefaultArgument, _ServerOnUpdateArgument
+    from sqlalchemy.sql.selectable import ForUpdateArg
     from sqlalchemy.sql.type_api import _BindProcessorType
 
 __all__ = [
@@ -32,6 +34,7 @@ __all__ = [
     "ServerOnUpdateArgument",
     "attribute_options",
     "exclude_from_init",
+    "for_update_arg",
     "is_mapped_annotation",
     "is_populated",
     "mapper_props",
@@ -57,6 +60,15 @@ def attribute_options(column: MappedColumn[Any]) -> "_AttributeOptions":
 def exclude_from_init(column: MappedColumn[Any]) -> None:
     """Record ``init=False`` on ``column`` where SQLAlchemy's dataclass mapping would."""
     column._attribute_options = column._attribute_options._replace(dataclasses_init=False)
+
+
+def for_update_arg(statement: object) -> "ForUpdateArg | None":
+    """The ``FOR UPDATE`` or ``FOR SHARE`` argument ``statement`` carries, or ``None``.
+
+    Only a select or a compound select can carry one; any other statement, a raw SQL string
+    included, gives ``None``.
+    """
+    return statement._for_update_arg if isinstance(statement, GenerativeSelect) else None
 
 
 def is_mapped_annotation(cls: type) -> bool:

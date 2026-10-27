@@ -10,13 +10,15 @@ This document provides a deep architectural walkthrough of `alchemic`'s codebase
 - `_constants.py`: Names of the class attributes and `info` keys that `alchemic` writes onto models and columns.
 - `model.py`: Core `Model` base class, `ModelMeta` metaclass, lifecycle hooks, `update`, `assign`, `load`.
 - `_typing.py`: Typed declarations for type checkers (`Mapped`, `TypedAttribute`, `Related`, `RelatedAttribute`, `Path`, `references`, `mapped_column`, `col`, `relationship`, `link`, `prefetch`).
-- `_fields.py`: Pydantic field reconciliation, default rebuilding, constraint tightening (`String` max length, `Numeric` precision/scale), read-only detection.
+- `_fields.py`: Pydantic field reconciliation, default rebuilding, constraint tightening (`String` max length, `Numeric` and `ScaledDecimal` precision/scale), read-only detection.
 - `_mapped_schema.py`: Pydantic core schema hook for `Mapped[T]`.
 - `_relationships.py`: Runtime relationship utilities (`path`, `prefetch`, `link`, reverse relationship pairing, and optionality checks).
 - `_receivers.py`: Transaction change tracking (`on_commit` receivers, SQLAlchemy event listeners for `after_insert`, `after_update`, `after_delete`, `after_commit`, `after_transaction_end`).
 - `_metadata.py`: `Annotated` metadata extraction and normalization.
 - `extensions.py`: `Extension`, `FieldExtension`, and `get_field_metadata`.
 - `session.py`: `Session` and `AsyncSession` subclasses implementing arity-based `exec()` shaping.
+- `types.py`: `ScaledDecimal`, a `Decimal` column type stored as a scaled `BIGINT`.
+- `sqlite.py`: `configure_sqlite`, which sets SQLite's PRAGMAs, emits `BEGIN` in the mode each transaction asks for, and refuses row locks.
 - `_sqlalchemy_private.py`: Encapsulated access to SQLAlchemy internal attributes and methods (pinned to SQLAlchemy `<2.1`).
 
 ---

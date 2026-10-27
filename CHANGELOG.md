@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.4 (2026-10-12)
+
+- Docs: recipe for JSONB (with in-place mutation tracking), pgvector, PostGIS and
+  models over existing or reflected tables, backed by Postgres integration tests.
+- Added `ScaledDecimal(precision, scale)`, a `Decimal` column type stored as an exact
+  `BIGINT` count of units, so `SUM` is exact. It never rounds, and its digit limits
+  are validated on model fields as `Numeric`'s are.
+- Added `configure_sqlite`, which sets foreign keys, a busy timeout and WAL on each
+  SQLite connection and emits `BEGIN` itself, so `alchemic_sqlite_begin` picks
+  `DEFERRED`, `IMMEDIATE` or `EXCLUSIVE` per transaction. `FOR UPDATE` and `FOR SHARE`
+  raise `CompileError` on SQLite, which has no row locks.
+- Docs: recipe for SQLite with money, locks and transactions.
+
 ## 0.1.3 (2026-10-12)
 
 - Added `col`, a shorter name for `mapped_column`.

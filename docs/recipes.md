@@ -175,3 +175,109 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+---
+
+## 6. PostgreSQL Types & Existing Tables
+
+Any SQLAlchemy column type works as the argument to `mapped_column`. Give the field the Python type the column returns; the type checker and Pydantic validation both read the annotation.
+
+### JSONB
+
+```python
+from typing import Any
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.mutable import MutableDict
+from alchemic import Mapped, Model, mapped_column
+
+class Document(Model):
+    __tablename__ = "documents"
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    body: Mapped[dict[str, Any]] = mapped_column(MutableDict.as_mutable(JSONB), default=dict)
+```
+
+Assigning a new value (`doc.body = {...}`) is always tracked. Changing a value in place (`doc.body["k"] = 1`) is tracked only when the column is wrapped in `MutableDict.as_mutable` (or `MutableList` for lists); otherwise the change is not flushed.
+
+### pgvector and PostGIS
+
+Install `pgvector` or `geoalchemy2` and use their column types directly. The database needs `CREATE EXTENSION vector` / `CREATE EXTENSION postgis`.
+
+```python
+from geoalchemy2 import Geometry
+from pgvector.sqlalchemy import Vector
+
+class Place(Model):
+    __tablename__ = "places"
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(3))
+    location: Mapped[Any] = mapped_column(Geometry("POINT", srid=4326))
+
+nearest = session.exec(Place.where().order_by(Place.embedding.l2_distance([1, 2, 3]))).first()
+```
+
+`Geometry` values load as `geoalchemy2.WKBElement`; annotate the field `Any`. A string such as `"SRID=4326;POINT(1 2)"` is accepted on construction.
+
+### Mapping an existing table
+
+Set `__table__` to a `Table` (reflected with `autoload_with=engine`, or declared on the model base's `metadata`) and annotate each column you want as a field. Annotations carry the types; columns without an annotation are mapped by SQLAlchemy but are not model fields. Do not repeat `mapped_column` for columns the table already defines.
+
+```python
+table = Table("legacy_orders", Model.metadata, autoload_with=engine)
+
+class LegacyOrder(Model):
+    __table__ = table
+    id: Mapped[int]
+    label: Mapped[str]
+    extra: Mapped[dict[str, Any] | None]
+```
+
+A model over a reflected table must be declared after reflection, so it needs a live connection at import time.
+
+---
+
+## 7. SQLite: Money, Locks and Transactions
+
+One SQLite file per company works well with `configure_sqlite`, and two things need care. A `Numeric` column is stored as a float, so sums drift. SQLite also has no row locks, and its default transaction mode can fail with `database is locked` where a wait would succeed.
+
+`ScaledDecimal(precision, scale)` stores the value as an integer count of `10 ** -scale` units, so `SUM` and comparisons are exact. Reads return a `Decimal` with exactly `scale` places. A value with more decimal places than `scale` raises `ValueError`; it is never rounded.
+
+`configure_sqlite` sets foreign keys on, a 5-second busy timeout and WAL journaling on each connection, and takes over transaction control so that each transaction's `BEGIN` mode can be chosen. Call it before the engine's first connection.
+
+```python
+from decimal import Decimal
+
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import sessionmaker
+
+from alchemic import Mapped, Model, ScaledDecimal, Session, configure_sqlite, mapped_column
+
+
+class LedgerEntry(Model):
+    __tablename__ = "ledger_entries"
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    amount: Mapped[Decimal] = mapped_column(ScaledDecimal(18, 4))
+
+
+engine = create_engine("sqlite:///company-42.db")
+configure_sqlite(engine)
+Model.metadata.create_all(engine)
+
+writer = engine.execution_options(alchemic_sqlite_begin="IMMEDIATE")
+WriterSession = sessionmaker(bind=writer, class_=Session)
+with WriterSession() as session:
+    session.add_all([LedgerEntry(amount=Decimal("0.1")) for _ in range(3)])
+    session.commit()
+
+with Session(engine) as session:
+    session.scalars(select(func.sum(LedgerEntry.amount))).one()  # Decimal('0.3000')
+```
+
+The `alchemic_sqlite_begin` execution option chooses the `BEGIN` mode of a transaction:
+
+- `"DEFERRED"` (the default) takes its locks at the first read or write. A transaction that reads and then writes can fail at that write with `database is locked`, without waiting.
+- `"IMMEDIATE"` takes the write lock at `BEGIN`, so the busy timeout applies before any work is done. Use it for transactions that will write.
+- `"EXCLUSIVE"` also blocks readers in rollback-journal mode. With WAL it behaves like `IMMEDIATE`.
+
+Set the option on an engine, on a connection (`engine.connect().execution_options(...)`), or on a session as the first call in its transaction: `await session.connection(execution_options={"alchemic_sqlite_begin": "IMMEDIATE"})`.
+
+`with_for_update()`, including `with_for_update(read=True)` for `FOR SHARE`, raises `CompileError` on these connections. That holds for `session.execute`, `scalars`, `exec`, `get`, `refresh`, `stream_exec` and `connection.execute` alike. To serialize a read-then-write transaction, run it with `"IMMEDIATE"` instead. That takes the database's write lock before its first statement.

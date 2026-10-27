@@ -144,6 +144,18 @@ Shown on `Issue` in the example models above:
 project_id: Mapped[uuid.UUID] = mapped_column(references(Project.id, ondelete="CASCADE"))
 ```
 
+### `ScaledDecimal`
+Signature: `ScaledDecimal(precision, scale)`, a SQLAlchemy `TypeDecorator` for `Mapped[Decimal]`.
+
+- Stores the value as a `BIGINT` count of `10 ** -scale` units, so `SUM` and comparisons in SQL are exact on SQLite and Postgres. Reads return a `Decimal` with exactly `scale` places.
+- Never rounds. A `Decimal` or `int` with more than `scale` decimal places raises `ValueError`, and so does one needing more than `precision` digits once scaled. A `float`, a `bool` or any other type raises `TypeError`.
+- `precision` must be at most 18, the most a signed 64-bit integer holds. `scale` must be between 0 and `precision`. Both are checked at construction.
+- A field typed `Mapped[Decimal]` gets the same digit limits as a `Numeric(precision, scale)` column, so a model rejects `Decimal("1.00001")` for `ScaledDecimal(18, 4)`.
+
+```python
+amount: Mapped[Decimal] = mapped_column(ScaledDecimal(18, 4), default=Decimal(0))
+```
+
 ---
 
 ## 3. Relationships & Navigation
@@ -217,6 +229,16 @@ Alchemic's wrapper around SQLAlchemy's `async_sessionmaker`. It produces `AsyncS
 
 ### Statement helpers
 `select`, `insert`, `update` and `delete` are re-exported from SQLAlchemy unchanged. Use `Model.where` for a filtered select on one model and these for everything else.
+
+### `configure_sqlite`
+Signature: `configure_sqlite(engine, *, foreign_keys=True, busy_timeout_ms=5000, journal_mode="WAL")`. Accepts an `Engine` or an `AsyncEngine`.
+
+- Sets `PRAGMA foreign_keys`, `PRAGMA busy_timeout` and `PRAGMA journal_mode` (skipped when `journal_mode=None`) on every new connection. Call it before the engine's first connection.
+- Emits `BEGIN` itself. The mode comes from the connection's `alchemic_sqlite_begin` execution option: `"DEFERRED"` (the default), `"IMMEDIATE"` or `"EXCLUSIVE"`. Any other value raises `ValueError` when the transaction begins.
+- Refuses `FOR UPDATE` and `FOR SHARE` with `CompileError`, since SQLite has no row locks.
+- Raises `ValueError` if the engine is not SQLite, if `busy_timeout_ms` is negative, or if `journal_mode` is not a SQLite journal mode.
+
+See [SQLite: Money, Locks and Transactions](recipes.md#7-sqlite-money-locks-and-transactions).
 
 ---
 

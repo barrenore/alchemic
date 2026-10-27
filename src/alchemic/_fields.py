@@ -28,6 +28,7 @@ from alchemic._constants import (
 )
 from alchemic._metadata import extract_metadata_items, normalize_meta_dict
 from alchemic._sqlalchemy_private import NO_ARG, attribute_options
+from alchemic.types import ScaledDecimal
 
 __all__ = ["Declared", "declared_defaults", "find_column", "is_mapped_column", "repair_model_fields"]
 
@@ -181,6 +182,7 @@ def _tighten(field: PydanticFieldInfo, constraint: str, limit: int, enforced: Py
 def _constrain_to_column_type(field: PydanticFieldInfo, column: Any) -> bool:
     """Validate the limits the column type sets: a ``String``'s length, a ``Numeric``'s digits.
 
+    A ``ScaledDecimal`` gives the same digit limits as a ``Numeric`` of its precision and scale.
     Only a ``str`` or ``Decimal`` value, or a ``NewType`` of one, is constrained.
     Returns ``True`` if the field changed.
     """
@@ -193,7 +195,7 @@ def _constrain_to_column_type(field: PydanticFieldInfo, column: Any) -> bool:
             return False
         length = column_type.length
         return _tighten(field, "max_length", length, Field(max_length=length))
-    if isinstance(column_type, Numeric) and issubclass(value_type, Decimal):
+    if isinstance(column_type, (Numeric, ScaledDecimal)) and issubclass(value_type, Decimal):
         changed = False
         if (digits := column_type.precision) is not None:
             changed = _tighten(field, "max_digits", digits, Field(max_digits=digits)) or changed

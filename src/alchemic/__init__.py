@@ -24,6 +24,8 @@ from alchemic._typing import (
 from alchemic.extensions import Extension, FieldExtension, get_field_info, get_field_metadata
 from alchemic.model import DeclarativeRoot, Model, ModelMeta, create_model_base
 from alchemic.session import AsyncSession, Session, async_sessionmaker
+from alchemic.sqlite import configure_sqlite
+from alchemic.types import ScaledDecimal
 
 __all__ = [
     "AsyncSession",
@@ -39,11 +41,13 @@ __all__ = [
     "Path",
     "Related",
     "RelatedAttribute",
+    "ScaledDecimal",
     "Session",
     "TypedAttribute",
     "Updated",
     "async_sessionmaker",
     "col",
+    "configure_sqlite",
     "create_model_base",
     "delete",
     "get_field_info",
@@ -60,4 +64,4 @@ __all__ = [
     "update",
 ]
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"

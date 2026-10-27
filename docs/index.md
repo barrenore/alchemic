@@ -16,7 +16,7 @@ The [README](../README.md) is the tour and the reasoning behind the design. Thes
 | [Relationships](relationships.md) | Foreign keys, reverse sides, pairing, one-to-one, many-to-many, self-referential trees, loading. |
 | [Typing](typing.md) | What Pyright and Mypy check, the types they report, and the known gaps. |
 | [Errors](errors.md) | Every error alchemic raises, with its message, cause and fix. |
-| [Recipes](recipes.md) | Inheritance, read-only fields, lifecycle hooks, reusable columns, async receivers. |
+| [Recipes](recipes.md) | Inheritance, read-only fields, lifecycle hooks, reusable columns, async receivers, JSONB, pgvector, PostGIS, existing tables. |
 | [Codebase](codebase.md) | How the SQLAlchemy and Pydantic pieces are joined. |
 
 ---

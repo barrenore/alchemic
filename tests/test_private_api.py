@@ -11,15 +11,18 @@ import inspect
 
 import pytest
 from pydantic import BaseModel
-from sqlalchemy import ForeignKey, Integer
+from sqlalchemy import ForeignKey, Integer, literal_column
+from sqlalchemy import select as sa_select
 from sqlalchemy.orm import Mapped as SAMapped
 from sqlalchemy.orm import Mapper, RelationshipProperty
 from sqlalchemy.orm import mapped_column as sa_mapped_column
 from sqlalchemy.orm.base import DEFAULT_STATE_ATTR, _MappedAnnotationBase
 from sqlalchemy.sql.base import _NoArg
+from sqlalchemy.sql.selectable import GenerativeSelect, Select
 from sqlalchemy.types import TypeEngine
 
 from alchemic import Mapped, Model, Related, create_model_base, mapped_column, relationship
+from alchemic._sqlalchemy_private import for_update_arg
 
 
 def test_mapped_column_records_init_and_default_where_alchemic_reads_them():
@@ -127,3 +130,14 @@ def test_greenlet_helpers_alchemic_uses():
 
     assert not in_greenlet(), "_receivers._dispatch: outside greenlet_spawn"
     assert callable(await_only) and callable(greenlet_spawn), "_receivers._dispatch, Model.load"
+
+
+def test_for_update_arg_reads_the_lock_a_select_carries():
+    """``sqlite.configure_sqlite`` refuses a statement whose ``for_update_arg`` is set."""
+    plain = sa_select(literal_column("1"))
+    locked = plain.with_for_update(read=True)
+    assert issubclass(Select, GenerativeSelect), "_sqlalchemy_private.for_update_arg: isinstance check"
+    assert plain._for_update_arg is None, "_sqlalchemy_private.for_update_arg: Select._for_update_arg"
+    assert for_update_arg(plain) is None
+    assert for_update_arg(locked) is not None, "_sqlalchemy_private.for_update_arg: with_for_update moved"
+    assert for_update_arg("SELECT 1") is None, "_sqlalchemy_private.for_update_arg: raw SQL"
