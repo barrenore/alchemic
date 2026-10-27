@@ -21,13 +21,14 @@ if TYPE_CHECKING:
     from sqlalchemy.sql._typing import _AutoIncrementType, _InfoType
     from sqlalchemy.sql.schema import _ServerDefaultArgument, _ServerOnUpdateArgument
     from sqlalchemy.sql.selectable import ForUpdateArg
-    from sqlalchemy.sql.type_api import _BindProcessorType
+    from sqlalchemy.sql.type_api import _BindProcessorType, _ComparatorFactory
 
 __all__ = [
     "NO_ARG",
     "AsyncSessionBind",
     "AutoIncrementType",
     "BindProcessorType",
+    "ComparatorFactory",
     "InfoType",
     "NoArg",
     "ServerDefaultArgument",
@@ -44,6 +45,7 @@ __all__ = [
 type AsyncSessionBind = _AsyncSessionBind
 type AutoIncrementType = _AutoIncrementType
 type BindProcessorType[T] = _BindProcessorType[T]
+type ComparatorFactory[T] = _ComparatorFactory[T]
 type InfoType = _InfoType
 type NoArg = _NoArg
 type ServerDefaultArgument = _ServerDefaultArgument

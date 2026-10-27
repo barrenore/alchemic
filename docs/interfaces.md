@@ -148,7 +148,9 @@ project_id: Mapped[uuid.UUID] = mapped_column(references(Project.id, ondelete="C
 Signature: `ScaledDecimal(precision, scale)`, a SQLAlchemy `TypeDecorator` for `Mapped[Decimal]`.
 
 - Stores the value as a `BIGINT` count of `10 ** -scale` units, so `SUM` and comparisons in SQL are exact on SQLite and Postgres. Reads return a `Decimal` with exactly `scale` places.
-- Never rounds. A `Decimal` or `int` with more than `scale` decimal places raises `ValueError`, and so does one needing more than `precision` digits once scaled. A `float`, a `bool` or any other type raises `TypeError`.
+- Never rounds. A `Decimal` or `int` with more than `scale` decimal places raises `ValueError`, and so does one needing more than `precision` digits once scaled. A `float`, a `bool` or any other type raises `TypeError`. When a statement executes, SQLAlchemy wraps either error in `sqlalchemy.exc.StatementError`, with the original on `.orig`.
+- In SQL expressions, `+` and `-` with a `ScaledDecimal` of the same scale, a `Decimal` or an `int`, and `*` by an integer column or `int`, give a `ScaledDecimal`. Other arithmetic (`/`, `//`, `%`, `*` by a `Decimal` or another `ScaledDecimal`, mixed scales) raises `TypeError` when the expression is built.
+- `func.sum`, `func.min` and `func.max` keep the type. `func.avg` returns raw units; divide `func.sum` by `func.count` in Python instead. With a column of another type on the left (`quantity + amount`), SQLAlchemy applies that column's rules, so put the `ScaledDecimal` first. A Python value inside a SQL function or `CASE` is not scaled; pass it as `literal(value, ScaledDecimal(precision, scale))`.
 - `precision` must be at most 18, the most a signed 64-bit integer holds. `scale` must be between 0 and `precision`. Both are checked at construction.
 - A field typed `Mapped[Decimal]` gets the same digit limits as a `Numeric(precision, scale)` column, so a model rejects `Decimal("1.00001")` for `ScaledDecimal(18, 4)`.
 

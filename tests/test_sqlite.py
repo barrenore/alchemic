@@ -3,6 +3,9 @@
 File-backed databases, since WAL and locking need a real file. Each test uses its own ``tmp_path``.
 """
 
+import threading
+import time
+
 import pytest
 import sqlalchemy as sa
 from sqlalchemy import event
@@ -197,6 +200,108 @@ def test_a_non_sqlite_engine_is_rejected():
     engine.dispose()
 
 
+def test_configuring_again_replaces_the_settings(tmp_path):
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'again.db'}")
+    configure_sqlite(engine, busy_timeout_ms=100)
+    configure_sqlite(engine, foreign_keys=False, busy_timeout_ms=200, journal_mode=None)
+    with engine.connect() as conn:
+        assert conn.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 0
+        assert conn.exec_driver_sql("PRAGMA busy_timeout").scalar_one() == 200
+        assert conn.exec_driver_sql("PRAGMA journal_mode").scalar_one() == "delete"
+    engine.dispose()
+
+
+def test_configuring_one_engine_leaves_another_alone(tmp_path):
+    configured = sa.create_engine(f"sqlite:///{tmp_path / 'configured.db'}")
+    plain = sa.create_engine(f"sqlite:///{tmp_path / 'plain.db'}")
+    configure_sqlite(configured)
+    with plain.connect() as conn:
+        assert conn.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 0
+        assert conn.execute(sa.select(sa.literal(1)).with_for_update()).scalar_one() == 1
+    configured.dispose()
+    plain.dispose()
+
+
+def test_a_rolled_back_transaction_leaves_no_rows(file_engine):
+    with pytest.raises(RuntimeError), Session(file_engine) as session:
+        session.add(Ticket(title="discarded"))
+        session.flush()
+        raise RuntimeError
+    with Session(file_engine) as session:
+        assert session.scalars(sa.select(Ticket)).all() == []
+
+
+def test_ddl_is_transactional(file_engine):
+    with file_engine.connect() as conn:
+        conn.begin()
+        conn.exec_driver_sql("CREATE TABLE scratch (id INTEGER)")
+        conn.rollback()
+    assert "scratch" not in sa.inspect(file_engine).get_table_names()
+
+
+def test_a_savepoint_rolls_back_alone(file_engine):
+    with Session(file_engine) as session:
+        session.add(Ticket(title="kept"))
+        with session.begin_nested() as savepoint:
+            session.add(Ticket(title="undone"))
+            session.flush()
+            savepoint.rollback()
+        session.commit()
+    with Session(file_engine) as session:
+        assert session.scalars(sa.select(Ticket.title)).all() == ["kept"]
+
+
+def test_a_deferred_read_then_write_fails_without_waiting(file_engine):
+    _insert_ticket(file_engine)
+    reader = file_engine.connect()
+    try:
+        reader.begin()
+        reader.execute(sa.select(Ticket)).all()
+        _insert_ticket(file_engine)
+        started = time.monotonic()
+        with pytest.raises(OperationalError, match="database is locked"):
+            reader.execute(sa.insert(Ticket).values(title="late"))
+        assert time.monotonic() - started < 1
+    finally:
+        reader.rollback()
+        reader.close()
+
+
+def test_an_immediate_transaction_waits_for_the_writer_ahead_of_it(file_engine):
+    holding = threading.Event()
+
+    def hold_the_write_lock() -> None:
+        with file_engine.connect().execution_options(alchemic_sqlite_begin="IMMEDIATE") as conn:
+            conn.begin()
+            conn.execute(sa.insert(Ticket).values(title="first"))
+            holding.set()
+            time.sleep(0.3)
+            conn.commit()
+
+    holder = threading.Thread(target=hold_the_write_lock)
+    holder.start()
+    try:
+        assert holding.wait(5)
+        started = time.monotonic()
+        with file_engine.connect().execution_options(alchemic_sqlite_begin="IMMEDIATE") as conn:
+            conn.begin()
+            assert time.monotonic() - started >= 0.2
+            conn.execute(sa.insert(Ticket).values(title="second"))
+            conn.commit()
+    finally:
+        holder.join()
+    with file_engine.connect() as conn:
+        assert conn.scalars(sa.select(Ticket.title).order_by(Ticket.id)).all() == ["first", "second"]
+
+
+def test_the_refusal_names_the_begin_option(file_engine):
+    with (
+        file_engine.connect() as conn,
+        pytest.raises(CompileError, match="alchemic_sqlite_begin='IMMEDIATE'"),
+    ):
+        conn.execute(_locking_select())
+
+
 def _locking_select() -> sa.Select[tuple[Ticket]]:
     return sa.select(Ticket).where(Ticket.id == 1).with_for_update()
 
@@ -285,3 +390,23 @@ async def test_begin_mode_from_the_first_call_on_an_async_session(async_file_eng
         session.add(Ticket(title="first"))
         await session.commit()
     assert "BEGIN IMMEDIATE" in statements
+
+
+async def test_begin_mode_from_an_async_engine_with_execution_options(async_file_engine):
+    statements = _record_statements(async_file_engine)
+    writer = async_file_engine.execution_options(alchemic_sqlite_begin="IMMEDIATE")
+    async with async_sessionmaker(writer)() as session:
+        session.add(Ticket(title="first"))
+        await session.commit()
+    assert "BEGIN IMMEDIATE" in statements
+
+
+async def test_async_savepoint_rolls_back_alone(async_file_engine):
+    async with async_sessionmaker(async_file_engine)() as session:
+        session.add(Ticket(title="kept"))
+        savepoint = await session.begin_nested()
+        session.add(Ticket(title="undone"))
+        await session.flush()
+        await savepoint.rollback()
+        await session.commit()
+        assert (await session.scalars(sa.select(Ticket.title))).all() == ["kept"]

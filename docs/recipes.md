@@ -241,6 +241,8 @@ One SQLite file per company works well with `configure_sqlite`, and two things n
 
 `ScaledDecimal(precision, scale)` stores the value as an integer count of `10 ** -scale` units, so `SUM` and comparisons are exact. Reads return a `Decimal` with exactly `scale` places. A value with more decimal places than `scale` raises `ValueError`; it is never rounded.
 
+Arithmetic in SQL stays exact or is refused. `Entry.debit - Entry.credit`, `Entry.amount + Decimal("1.50")` and `Entry.amount * Entry.quantity` (an integer column) return `ScaledDecimal` values; `/`, `%` and `*` by a `Decimal` raise `TypeError` when the expression is built, so do that maths in Python. Put the `ScaledDecimal` column on the left of an operator, and compute an average as `func.sum` divided by `func.count`, since `func.avg` returns raw units.
+
 `configure_sqlite` sets foreign keys on, a 5-second busy timeout and WAL journaling on each connection, and takes over transaction control so that each transaction's `BEGIN` mode can be chosen. Call it before the engine's first connection.
 
 ```python

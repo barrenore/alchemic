@@ -1,6 +1,8 @@
 """Configure a SQLite engine: foreign keys, busy timeout, WAL, explicit BEGIN modes, and no row locks."""
 
+from collections.abc import Callable
 from typing import Any, Final
+from weakref import WeakKeyDictionary
 
 from sqlalchemy import event
 from sqlalchemy.engine import Connection, Engine
@@ -14,6 +16,7 @@ __all__ = ["configure_sqlite"]
 _BEGIN_MODES: Final = ("DEFERRED", "IMMEDIATE", "EXCLUSIVE")
 _BEGIN_OPTION: Final = "alchemic_sqlite_begin"
 _JOURNAL_MODES: Final = frozenset({"DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"})
+_CONNECT_LISTENERS: Final[WeakKeyDictionary[Engine, Callable[[Any, object], None]]] = WeakKeyDictionary()
 
 
 def _begin(conn: Connection) -> None:
@@ -49,6 +52,8 @@ def configure_sqlite(
     ``FOR UPDATE`` or ``FOR SHARE`` raises ``CompileError``, since SQLite has no row locks.
 
     Call before the engine opens its first connection, because the PRAGMAs run on connect.
+    Calling it again on the same engine replaces the PRAGMA settings for connections opened
+    afterwards.
     Raises ``ValueError`` if the engine's dialect is not ``sqlite``, if ``busy_timeout_ms`` is
     negative, or if ``journal_mode`` is not a SQLite journal mode.
     """
@@ -76,7 +81,10 @@ def configure_sqlite(
         finally:
             cursor.close()
 
+    if (previous := _CONNECT_LISTENERS.get(sync_engine)) is not None:
+        event.remove(sync_engine, "connect", previous)
     event.listen(sync_engine, "connect", _on_connect)
+    _CONNECT_LISTENERS[sync_engine] = _on_connect
     if not event.contains(sync_engine, "begin", _begin):
         event.listen(sync_engine, "begin", _begin)
     if not event.contains(sync_engine, "before_execute", _refuse_row_locks):
