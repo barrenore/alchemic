@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.4 (2026-10-12)
+## 0.1.4 (2026-10-28)
 
 - Docs: recipe for JSONB (with in-place mutation tracking), pgvector, PostGIS and
   models over existing or reflected tables, backed by Postgres integration tests.
