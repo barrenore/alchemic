@@ -76,9 +76,8 @@ class ScaledDecimal(TypeDecorator[Decimal]):
             result_type = _arithmetic_result(self._scaled, op, self._scaled.coerce_compared_value(op, other))
             return type_coerce(super().reverse_operate(op, other, **kwargs), result_type)
 
-    comparator_factory: "ComparatorFactory[Any]" = (  # pyright: ignore[reportIncompatibleMethodOverride]
-        Comparator
-    )
+    # Overrides a memoized_property in SQLAlchemy's stubs; pyright names the rule differently per version.
+    comparator_factory: "ComparatorFactory[Any]" = Comparator  # pyright: ignore
 
     def coerce_compared_value(self, op: OperatorType | None, value: Any) -> Any:
         """``Integer`` for an ``int`` multiplier, so it is not scaled; ``self`` for anything else."""
